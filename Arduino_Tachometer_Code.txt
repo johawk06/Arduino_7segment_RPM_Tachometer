@@ -1,0 +1,87 @@
+#include <SoftwareSerial.h> // Include the SoftwareSerial library for serial communication with the 7-segment display
+
+const int ssegpin = 6; // Define the pin connected to the 7-segment display's data input pin
+ 
+SoftwareSerial sseg(8,ssegpin); //Create a SoftwareSerial object for communication with the 7-segment display 
+
+// Initialize the 7-segment display communication
+void setup() {
+  Serial.begin(9600); // Set the baud rate to for serial communication with the OBD-II adapter to 9600 bps
+
+  // Initialize 7-Segment Display serial communication
+  sseg.begin(9600); // Set the baud rate for communication with the 7-segment display to 9600 bps
+
+  // Initialize the display with a default message and settings
+  sseg.print("v"); // Display the character 'v' as a placeholde
+  sseg.print("----"); // Display four dashes to represent the initial RPM value
+
+  setDecimals(0b00000000);  // Turn off all decimal points on the 7-segment display
+
+  sseg.print("z"); // Display the character 'z' as a placeholder for the units digit of the RPM value
+
+  sseg.write((byte)255);  /// Set the brightness of the 7-segment display to maximum
+
+  // Clear the serial buffer to remove any leftover data
+  clearSerialBuffer();
+}
+
+// Function to clear the serial buffer to remove any leftover data
+void clearSerialBuffer() {
+  while (Serial.available()) { // Check if there's any data in the serial buffer
+    Serial.read();  // Read and discard one byte of data from the buffer
+  }
+}
+
+// Main loop that continuously reads RPM data and updates the 7-segment display
+void loop() {
+  // Send the OBD-II command to request RPM data
+  Serial.print("010C\r"); // Send the "01 0C" command to the OBD-II adapter
+
+  // Wait for a response from the OBD-II adapter
+  delay(100); // Wait for 100 milliseconds to allow the OBD-II adapter to respond
+
+   // Read and process the response from the OBD-II adapter
+  String response = ""; // Initialize an empty string to store the response
+  while (Serial.available()) { // Check if there's any data in the serial buffer
+    char c = Serial.read(); // Read one character from the buffer
+    response += c; // Append the character to the response string
+  }
+
+  // Clear the serial buffer to remove any leftover data
+  clearSerialBuffer();
+
+  // Extract the RPM value from the response
+  int rpmIndex = response.indexOf("41 0C"); // Search for the "41 0C" indicator in the response
+  if (rpmIndex != -1 && response.length() >= rpmIndex + 8) { // Check if the indicator is found and the response is long enough
+    String rpmHex = response.substring(rpmIndex + 6, rpmIndex + 8) + response.substring(rpmIndex + 9, rpmIndex + 11);// Extract the RPM value in hexadecimal format
+    int rpm = strtol(rpmHex.c_str(), 0, 16) / 4; // Convert the hexadecimal RPM value to decimal
+
+    // Display the RPM value on the serial monitor for the purpose of testing/debugging
+    Serial.print("Vehicle RPM: "); // Print a message indicating the RPM value
+    Serial.println(rpm); // Print the RPM value
+
+    // Display the RPM value on the 7-segment display
+    sseg.print(rpm); // Display the RPM value on the 7-segment display
+}
+ else { // If the RPM value couldn't be extracted
+    // Print an error message indicating an invalid response
+    Serial.println("Error: Incomplete or invalid response");
+  }
+
+  delay(500); // Introduce a delay of 500 milliseconds between requests
+
+  // Clear the display to prepare for the next RPM update
+  sseg.print("v");  // Display the character 'v' as a placeholder
+
+  // Clear the serial buffer to remove any leftover data
+  clearSerialBuffer();
+
+  
+}
+
+// Set the decimals on the 7-segment display
+void setDecimals(byte decimals) {
+  sseg.write(0x77); // Send the command byte for setting decimals
+  sseg.write(decimals); // Send the decimal value
+}
+}
